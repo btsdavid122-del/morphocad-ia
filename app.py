@@ -1,39 +1,36 @@
-from flask import Flask, request, jsonify
-from openai import OpenAI
 import os
+import openai
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+
+# =========================================
+# MORPHO-AI - Servidor en la nube
+# =========================================
 
 app = Flask(__name__)
+CORS(app)  # permite conexiones desde ESP32 o web
 
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+# Leer la API Key desde variable de entorno (NO ponerla en el código)
+openai.api_key = os.environ.get("OPENAI_API_KEY")
 
-@app.route("/")
-def home():
-    return "Morpho AI está online 🤖"
-
+# Ruta principal para recibir preguntas
 @app.route("/morpho", methods=["POST"])
 def morpho():
-    texto = request.json.get("texto", "")
+    data = request.get_json()
+    pregunta = data.get("texto", "")
 
-    completion = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "Eres Morpho, un asistente virtual doméstico"},
-            {"role": "user", "content": texto}
-        ]
-    )
+    try:
+        # Llamada a la IA de OpenAI
+        respuesta = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": pregunta}]
+        )
+        texto_respuesta = respuesta['choices'][0]['message']['content']
+        return jsonify(texto_respuesta)
+    except Exception as e:
+        # En caso de error, devuelve mensaje de error
+        return jsonify(f"Error: {str(e)}")
 
-    accion = "ninguna"
-    t = texto.lower()
-    if "apaga la luz" in t:
-        accion = "apagar_luz"
-    if "enciende la luz" in t:
-        accion = "encender_luz"
-    if "reproduce" in t:
-        accion = "reproducir_musica"
-
-    return jsonify({
-        "respuesta": completion.choices[0].message.content,
-        "accion": accion
-    })
-
-app.run(host="0.0.0.0", port=10000)
+# Para iniciar el servidor
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
